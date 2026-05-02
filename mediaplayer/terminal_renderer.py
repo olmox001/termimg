@@ -202,6 +202,53 @@ class TerminalRenderer:
         sys.stdout.write("".join(output))
         sys.stdout.flush()
 
+    def export_for_nexs(self, pixel_data, term_width, term_height, filepath):
+        """
+        Esporta il rendering corrente in un file testuale (.nxi) 
+        pienamente compatibile con il parser VFS e termimg di NEXS.
+        """
+        output = []
+        
+        # Esportiamo solo fino a term_height - 1 per lasciare spazio
+        # alla status bar di NEXS in fondo allo schermo
+        for y in range(term_height - 1):
+            line_chars = []
+            last_fg = None
+            last_bg = None
+            
+            for x in range(term_width):
+                if (x, y) in pixel_data:
+                    data = pixel_data[(x, y)]
+                    fg_code = self.rgb_to_ansi(data['top_pixel'])
+                    bg_code = self.rgb_to_ansi(data['bottom_pixel'])
+                    
+                    # Usa escape nativo \e che NEXS capisce molto bene
+                    if fg_code != last_fg or bg_code != last_bg:
+                        line_chars.append(f"\033[38;5;{fg_code}m\033[48;5;{bg_code}m")
+                        last_fg, last_bg = fg_code, bg_code
+                        
+                    line_chars.append("▀")
+                else:
+                    if last_fg is not None:
+                        line_chars.append("\033[0m ")
+                        last_fg = last_bg = None
+                    else:
+                        line_chars.append(" ")
+                        
+            # Reset a fine riga obbligatorio per non corrompere la UI
+            if last_fg is not None:
+                line_chars.append("\033[0m")
+                
+            output.append("".join(line_chars))
+            
+        # Salva come file di testo raw con newline standard unix (\n)
+        try:
+            with open(filepath, "w", encoding="utf-8", newline='\n') as f:
+                f.write("\n".join(output))
+            print(f"\n[OK] Esportato per NEXS: {filepath}")
+        except Exception as e:
+            print(f"\n[ERR] Fallita esportazione NEXS: {e}")
+
     def rgb_to_ansi(self, rgb):
         """Converte un colore RGB in codice ANSI a 256 colori."""
         r, g, b = rgb[:3]
